@@ -40,15 +40,24 @@ The video player is built with two main components:
 **VideoPlayer.vue** - Main video player component
 - Uses HLS.js for adaptive bitrate streaming
 - Supports both HLS playlists (with `hls:` prefix) and regular video files
-- Exposes a single method: `load(url: string)` - this is the ONLY way to load videos
+- Exposes methods via `defineExpose`: `load(url)`, `setPosition(time)`, `play()`, `pause()`
 - Auto-detects available quality levels from HLS manifests
 - Manages audio/video track selection for playlists
 - Uses localStorage for persistent settings (volume, mute state)
+- Has auto-hide controls (via `resetTimeout()`) that hide after 1 second of inactivity
+- Loading animations appear during initial load and buffering (using `waiting`/`playing` events)
+
+**VideoPlayer Events & Models**
+- **Events**: `setPosition` (when user changes position), `play`, `pause`
+- **Models**: `v-model:position` (read-only, reflects current time), `v-model:playing` (read-only, reflects play state)
+- Events are emitted when user actively changes state (scrubbing, clicking play/pause, keyboard shortcuts)
+- Models update automatically during playback but do NOT trigger events (prevents sync loops)
 
 **VideoPlayerProgress.vue** - Custom progress bar component
 - Implements two-way binding with `defineModel` for current time and dragging state
-- Uses `useThrottleFn` from VueUse to throttle updates during scrubbing
+- Uses `useThrottleFn` from VueUse to throttle updates during scrubbing (100ms)
 - Supports both mouse and touch events for desktop/mobile
+- Local progress state prevents jitter during drag operations
 
 ### Video Loading Pattern
 
@@ -93,11 +102,21 @@ The application uses a room-based architecture for multi-user synchronization:
 
 ### Socket.io Integration
 
-The application includes `socket.io-client` for real-time synchronization:
-- A separate `sync-server` project will handle WebSocket rooms
-- The VideoPlayer component will need to emit events (play, pause, seek, quality change) to sync server
-- Incoming sync events will need to call VideoPlayer methods without triggering outgoing events (to avoid loops)
-- Room IDs from the URL path will be used to join Socket.io rooms
+The application includes `socket.io-client` for real-time synchronization (connects to `http://localhost:4000`):
+
+**Event Flow Pattern** (prevents sync loops):
+- **Outgoing**: VideoPlayer emits events → Room page watches models → Emits to socket
+  - `@setPosition` → `socket.emit('set-position', time)`
+  - `@play` → `socket.emit('user-playing')`
+  - `@pause` → `socket.emit('user-paused')`
+- **Incoming**: Socket receives events → Calls VideoPlayer methods directly
+  - `position-updated` → `videoPlayerRef.value.setPosition(time)` (does NOT emit event back)
+  - `new-video` → `videoPlayerRef.value.load(url)`
+
+**Room System**:
+- Room page joins socket room on mount with `userId` (from `useUserId` composable) and `roomId` (from route params)
+- Users list is maintained in room state showing who's in the room and their play/pause status
+- Video URL is synchronized across all users in the room
 
 ### UI Framework
 
@@ -117,23 +136,57 @@ Uses Nuxt UI (@nuxt/ui) for components:
 3. **Quality parsing from manifest** - Qualities are extracted from HLS.js parsed data, not from URL patterns
 4. **LocalStorage for settings** - Volume and mute state persist across sessions
 5. **Custom progress bar** - Built from scratch for full control over drag behavior and sync requirements
-6. **UUID-based rooms** - Each room gets a unique UUID v4 identifier for isolation and security
+6. **UUID-based rooms and users** - Each room gets a unique UUID v4 identifier; users get persistent UUIDs stored in cookies
 7. **Client-side room creation** - No server-side validation needed for room creation, rooms are ephemeral
+8. **Event/Model separation for sync** - Events signal user actions (emit to socket), models reflect state (read-only for parent), methods apply external changes (no event emission)
 
-## Component Props
+## Component API
 
 ### VideoPlayer
-- No props - everything is controlled via the exposed `load(url)` method
+- **Props**: None
+- **Models**:
+  - `v-model:position` (number, read-only) - Current playback time in seconds
+  - `v-model:playing` (boolean, read-only) - Current play/pause state
+- **Events**:
+  - `@setPosition(time: number)` - User changed position via scrubbing or keyboard
+  - `@play()` - User pressed play
+  - `@pause()` - User pressed pause
+- **Exposed Methods**:
+  - `load(url: string)` - Load video (use `hls:` prefix for HLS streams)
+  - `setPosition(time: number)` - Set position programmatically (for sync, does NOT emit event)
+  - `play()` - Start playback programmatically (for sync, does NOT emit event)
+  - `pause()` - Pause playback programmatically (for sync, does NOT emit event)
 
 ### VideoPlayerProgress
-- Props: `duration: number`
-- Models: `v-model` (currentTime), `v-model:isDragging` (boolean)
+- **Props**: `duration: number`
+- **Models**:
+  - `v-model` (number) - Current time in seconds
+  - `v-model:isDragging` (boolean) - Whether user is dragging the progress bar
 
 ## Common Patterns
 
-When adding new player controls or features:
+### Adding Player Controls
 1. Add state as a ref in VideoPlayer.vue
 2. If it needs persistence, use `useLocalStorage` from VueUse
-3. Add UI in the controls section (within the bottom gradient overlay)
-4. For dropdowns, follow the pattern of quality/audio/video track selectors
+3. Add UI in the controls section (within the bottom gradient overlay at bottom of template)
+4. For dropdowns, follow the pattern of quality/audio/video track selectors (use `UDropdownMenu`)
 5. Remember to check `isPlaylist` if the feature only applies to HLS content
+
+### Implementing Synchronization Features
+When adding new sync features, follow the event/model/method pattern:
+1. **User Actions** → Emit event → Parent listens and sends to socket
+   - Add event to `defineEmits` in VideoPlayer
+   - Emit when user performs action (button click, keyboard shortcut, etc.)
+   - Listen with `@eventName` in room page, emit to socket
+2. **External Changes** → Call exposed method → No event emitted
+   - Add method to `defineExpose` that directly updates video element
+   - Listen to socket event in room page, call `videoPlayerRef.value.method()`
+   - Method must NOT emit event back (prevents infinite loops)
+3. **State Reflection** → Update model in event listener
+   - Use `defineModel` for read-only state tracking
+   - Update in appropriate video event listener (e.g., `timeupdate`, `play`, `pause`)
+   - Parent can read via `v-model:name` but should not write to it
+
+### Composables
+- `useUserId()` - Returns a ref to persistent user UUID stored in cookie (1 year expiry)
+- Auto-imported by Nuxt from `composables/` directory
