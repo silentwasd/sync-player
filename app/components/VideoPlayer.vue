@@ -1,6 +1,15 @@
 <script setup lang="ts">
 import Hls from "hls.js";
 
+const emit = defineEmits<{
+    (e: 'setPosition', time: number): void,
+    (e: 'play'): void
+    (e: 'pause'): void
+}>();
+
+const inputPosition = defineModel<number>('position', {default: 0});
+const inputPlaying  = defineModel<boolean>('playing', {default: false});
+
 const hls = new Hls();
 
 const videoRef       = ref();
@@ -168,9 +177,9 @@ function exitFullscreen() {
     fullscreen.value = false;
 }
 
-function setPosition(_progress: number) {
-    videoRef.value.currentTime = (_progress / 1000) * videoRef.value.duration;
-    videoRef.value.play();
+function onProgressChange(time: number) {
+    videoRef.value.currentTime = time;
+    emit('setPosition', time);
 }
 
 function resume() {
@@ -185,6 +194,7 @@ defineShortcuts({
         usingInput: true,
         handler   : () => {
             videoRef.value.currentTime += 5;
+            emit('setPosition', videoRef.value.currentTime);
         }
     },
 
@@ -192,6 +202,7 @@ defineShortcuts({
         usingInput: true,
         handler   : () => {
             videoRef.value.currentTime -= 5;
+            emit('setPosition', videoRef.value.currentTime);
         }
     },
 
@@ -235,22 +246,41 @@ defineExpose({
             videoRef.value.src = url;
             isPlaylist.value   = false;
         }
+    },
+
+    setPosition(time: number) {
+        videoRef.value.currentTime = time;
+    },
+
+    play() {
+        videoRef.value.play();
+    },
+
+    pause() {
+        videoRef.value.pause();
     }
 });
 
 onMounted(() => {
-    videoRef.value.addEventListener('pause', () => paused.value = true);
+    videoRef.value.addEventListener('pause', () => {
+        paused.value       = true;
+        inputPlaying.value = false;
+        emit('pause');
+    });
 
     videoRef.value.addEventListener('play', () => {
-        paused.value = false;
-        played.value = true;
+        paused.value       = false;
+        played.value       = true;
+        inputPlaying.value = true;
+        emit('play');
     });
 
     videoRef.value.addEventListener('timeupdate', () => {
-        progress.value    = videoRef.value.currentTime / videoRef.value.duration;
-        currentTime.value = videoRef.value.currentTime;
-        duration.value    = videoRef.value.duration;
-        currentDate.value = makeTime(videoRef.value.currentTime);
+        progress.value      = videoRef.value.currentTime / videoRef.value.duration;
+        currentTime.value   = videoRef.value.currentTime;
+        duration.value      = videoRef.value.duration;
+        currentDate.value   = makeTime(videoRef.value.currentTime);
+        inputPosition.value = videoRef.value.currentTime;
     });
 
     videoRef.value.addEventListener('loadeddata', () => {
@@ -279,9 +309,8 @@ onMounted(() => {
     });
 
     document.addEventListener('fullscreenchange', () => fullscreen.value = !!document.fullscreenElement);
-});
 
-onMounted(() => {
+    // Запускаем таймер автоскрытия контролов
     resetTimeout();
 });
 </script>
@@ -296,7 +325,8 @@ onMounted(() => {
              @click.exact.prevent="resume"></div>
 
         <Transition>
-            <div v-show="loading" class="absolute top-0 w-full h-full z-20 flex items-center justify-center pointer-events-none">
+            <div v-show="loading"
+                 class="absolute top-0 w-full h-full z-20 flex items-center justify-center pointer-events-none">
                 <UIcon name="i-mdi-loading" class="size-24 text-white animate-spin"/>
             </div>
         </Transition>
@@ -309,7 +339,7 @@ onMounted(() => {
                     <VideoPlayerProgress class="mb-1.5"
                                          :duration="duration"
                                          :model-value="currentTime"
-                                         @update:model-value="videoRef.currentTime = $event"
+                                         @update:model-value="onProgressChange"
                                          v-model:is-dragging="isProgressDragging"/>
 
                     <div class="flex justify-between items-center">
