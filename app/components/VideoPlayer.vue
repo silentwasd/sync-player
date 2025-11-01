@@ -404,7 +404,6 @@ onMounted(() => {
 
         <video ref="videoRef"
                playsinline
-               autoplay
                :muted="muted"
                :volume="volume / 100"
                class="w-full h-full"></video>

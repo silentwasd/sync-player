@@ -1,5 +1,5 @@
 <script setup lang="ts">
-
+const userId = useUserId();
 </script>
 
 <template>
