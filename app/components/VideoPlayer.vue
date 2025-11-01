@@ -22,6 +22,7 @@ const videoTracks    = ref<any[]>([]);
 const audioTracks    = ref<any[]>([]);
 const selectedVideo  = ref<number>(-1);
 const selectedAudio  = ref<number>(-1);
+const loading        = ref<boolean>(false);
 
 const availableLevels = ref<any[]>([]);
 
@@ -217,6 +218,7 @@ defineExpose({
         selectedAudio.value   = -1;
         selectedLevel.value   = -1;
         isPlaylist.value      = false;
+        loading.value         = true;
 
         // Определяем тип контента по префиксу
         if (url.startsWith('hls:')) {
@@ -254,6 +256,7 @@ onMounted(() => {
     videoRef.value.addEventListener('loadeddata', () => {
         currentDate.value = makeTime(videoRef.value.currentTime);
         endDate.value     = makeTime(videoRef.value.duration);
+        loading.value     = false;
     });
 
     videoRef.value.addEventListener('loadedmetadata', () => {
@@ -283,6 +286,12 @@ onMounted(() => {
          @mousemove="controlShown = true; resetTimeout()">
         <div class="absolute top-0 w-full h-full z-10"
              @click.exact.prevent="resume"></div>
+
+        <Transition>
+            <div v-show="loading" class="absolute top-0 w-full h-full z-20 flex items-center justify-center bg-black bg-opacity-50">
+                <UIcon name="i-mdi-loading" class="size-24 text-white animate-spin"/>
+            </div>
+        </Transition>
 
         <Transition>
             <div v-show="controlShown" class="absolute top-0 w-full h-full select-none"
