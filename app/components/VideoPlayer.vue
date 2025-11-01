@@ -259,6 +259,14 @@ onMounted(() => {
         loading.value     = false;
     });
 
+    videoRef.value.addEventListener('waiting', () => {
+        loading.value = true;
+    });
+
+    videoRef.value.addEventListener('playing', () => {
+        loading.value = false;
+    });
+
     videoRef.value.addEventListener('loadedmetadata', () => {
         // Загружаем видео треки для обычного видео
         if (!isPlaylist.value && videoRef.value.videoTracks) {
@@ -288,7 +296,7 @@ onMounted(() => {
              @click.exact.prevent="resume"></div>
 
         <Transition>
-            <div v-show="loading" class="absolute top-0 w-full h-full z-20 flex items-center justify-center bg-black bg-opacity-50">
+            <div v-show="loading" class="absolute top-0 w-full h-full z-20 flex items-center justify-center pointer-events-none">
                 <UIcon name="i-mdi-loading" class="size-24 text-white animate-spin"/>
             </div>
         </Transition>
