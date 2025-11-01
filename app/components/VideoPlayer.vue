@@ -3,35 +3,30 @@ import Hls from "hls.js";
 
 const hls = new Hls();
 
-const videoRef        = ref();
-const videoRootRef    = ref();
-const levelSwitching  = ref<boolean>(false);
-const selectedLevel   = ref<number>(-1);
-const played          = ref<boolean>(false);
-const paused          = ref<boolean>(false);
-const progress        = ref<number>(0);
-const currentTime     = ref<number>(0);
-const duration        = ref<number>(0);
-const volume          = useLocalStorage<number>('player_volume', 100);
-const muted           = useLocalStorage<boolean>('player_muted', false);
-const currentDate     = ref<string>('');
-const endDate         = ref<string>('');
-const fullscreen      = ref<boolean>(false);
-const isPlaylist      = ref<boolean>(false);
-const videoTracks     = ref<any[]>([]);
-const audioTracks     = ref<any[]>([]);
-const selectedVideo   = ref<number>(-1);
-const selectedAudio   = ref<number>(-1);
+const videoRef       = ref();
+const videoRootRef   = ref();
+const levelSwitching = ref<boolean>(false);
+const selectedLevel  = ref<number>(-1);
+const played         = ref<boolean>(false);
+const paused         = ref<boolean>(false);
+const progress       = ref<number>(0);
+const currentTime    = ref<number>(0);
+const duration       = ref<number>(0);
+const volume         = useLocalStorage<number>('player_volume', 100);
+const muted          = useLocalStorage<boolean>('player_muted', false);
+const currentDate    = ref<string>('');
+const endDate        = ref<string>('');
+const fullscreen     = ref<boolean>(false);
+const isPlaylist     = ref<boolean>(false);
+const videoTracks    = ref<any[]>([]);
+const audioTracks    = ref<any[]>([]);
+const selectedVideo  = ref<number>(-1);
+const selectedAudio  = ref<number>(-1);
 
-const qualitySort  = ['hq', 'mq', 'lq'];
-const qualityNames = {
-    'hq': 'Высокое качество',
-    'mq': 'Среднее качество',
-    'lq': 'Низкое качество'
-};
+const availableLevels = ref<any[]>([]);
 
 const qualities = computed(() => {
-    if (!hls.levels || hls.levels.length === 0) return [];
+    if (!isPlaylist.value || availableLevels.value.length === 0) return [];
 
     return [
         {
@@ -44,9 +39,9 @@ const qualities = computed(() => {
                 hls.currentLevel    = -1;
             }
         },
-        ...hls.levels.map((level, i) => ({
+        ...availableLevels.value.map((level, i) => ({
             index  : i,
-            label  : `${level.height}p (${Math.round(level.bitrate / 1000)} kbps)`,
+            label  : `${level.height}p`,
             type   : 'checkbox',
             checked: selectedLevel.value === i,
             onSelect() {
@@ -99,6 +94,15 @@ hls.on(Hls.Events.LEVEL_SWITCHED, (e, data) => {
 
 hls.on(Hls.Events.MANIFEST_PARSED, (e, data) => {
     isPlaylist.value = data.levels.length > 0;
+
+    // Загружаем уровни качества
+    if (data.levels && data.levels.length > 0) {
+        availableLevels.value = data.levels.map(level => ({
+            width  : level.width,
+            height : level.height,
+            bitrate: level.bitrate
+        }));
+    }
 
     // Загружаем аудио треки
     if (hls.audioTracks && hls.audioTracks.length > 0) {
@@ -206,11 +210,13 @@ defineShortcuts({
 defineExpose({
     load(url: string) {
         // Очищаем предыдущие данные
-        videoTracks.value   = [];
-        audioTracks.value   = [];
-        selectedVideo.value = -1;
-        selectedAudio.value = -1;
-        isPlaylist.value    = false;
+        videoTracks.value     = [];
+        audioTracks.value     = [];
+        availableLevels.value = [];
+        selectedVideo.value   = -1;
+        selectedAudio.value   = -1;
+        selectedLevel.value   = -1;
+        isPlaylist.value      = false;
 
         // Определяем тип контента по префиксу
         if (url.startsWith('hls:')) {
@@ -225,7 +231,7 @@ defineExpose({
                 hls.detachMedia();
             }
             videoRef.value.src = url;
-            isPlaylist.value = false;
+            isPlaylist.value   = false;
         }
     }
 });
