@@ -3,43 +3,64 @@ import {io, Socket} from "socket.io-client";
 
 let socket: Socket;
 
+const ready = ref<boolean>(false);
+
 const route  = useRoute();
 const userId = useUserId();
+const toast  = useToast();
 
 const socketConnected = ref<boolean>(false);
 const roomJoined      = ref<boolean>(false);
 const users           = ref<any[]>([]);
 
-const sourceUrl      = ref<string>('');
-const videoPlayerRef = ref();
-const position       = ref<number>(0);
-const playing        = ref<boolean>(false);
+const inputSourceUrl  = ref<string>('');
+const loadedSourceUrl = ref<string>('');
+const videoPlayerRef  = ref();
+const position        = ref<number>(0);
+const playing         = ref<boolean>(false);
 
-function loadVideo() {
-    videoPlayerRef.value.load(sourceUrl.value);
-    socket?.emit('load-video', sourceUrl.value);
+const myUser = computed<any>(() => users.value.find(user => user.id === userId.value));
+
+async function loadVideo() {
+    if (!socket)
+        return;
+
+    if (await socket.emitWithAck('load-video', inputSourceUrl.value)) {
+        loadedSourceUrl.value = inputSourceUrl.value;
+        videoPlayerRef.value.load(inputSourceUrl.value);
+    } else {
+        toast.add({
+            title      : 'Нельзя',
+            description: 'Управлять плеером может только мастер',
+            color      : 'warning',
+            icon       : 'i-mdi-crown'
+        });
+    }
 }
 
 watch(playing, isPlaying => {
-    const myUser = users.value.find(user => user.id === userId.value);
+    if (!myUser.value)
+        return;
 
     if (isPlaying) {
-        socket?.emit('user-playing');
-        myUser.playing = true;
+        socket?.emit('i-am-playing');
+        myUser.value.playing = true;
     } else {
-        socket?.emit('user-paused');
-        myUser.playing = false;
+        socket?.emit('i-am-paused');
+        myUser.value.playing = false;
     }
 });
 
 watch(position, currentPosition => {
-    const myUser = users.value.find(user => user.id === userId.value);
-    socket?.emit('user-position', currentPosition);
-    myUser.position = currentPosition;
+    if (!myUser.value)
+        return;
+
+    socket?.emit('my-position', currentPosition);
+    myUser.value.position = currentPosition;
 });
 
 onMounted(() => {
-    socket = io('http://localhost:4000');
+    socket = io('http://192.168.0.34:4000', {autoConnect: false});
 
     socket.on('connect', async () => {
         console.log('Connected');
@@ -50,45 +71,85 @@ onMounted(() => {
             roomId: route.params.room as string
         });
 
-        users.value     = roomInfo.users;
-        sourceUrl.value = roomInfo.videoUrl;
+        if (!roomInfo) {
+            ready.value = false;
+            socket.close();
+            toast.add({
+                title      : 'Ошибка',
+                description: 'Неверный формат авторизации',
+                color      : 'error',
+                icon       : 'i-mdi-error'
+            });
+            return;
+        }
 
-        if (sourceUrl.value)
-            videoPlayerRef.value.load(sourceUrl.value);
+        console.log('Joined room', roomInfo);
+
+        users.value           = roomInfo.users;
+        loadedSourceUrl.value = roomInfo.videoUrl;
+
+        if (loadedSourceUrl.value) {
+            videoPlayerRef.value.load(loadedSourceUrl.value, roomInfo.position, roomInfo.playing);
+        }
 
         roomJoined.value = true;
     });
 
-    socket.on('new-user', user => {
+    socket.on('user-joined', user => {
         users.value.push(user);
     });
 
-    socket.on('leave-user', user => {
-        users.value = users.value.filter(_user => _user.id !== user);
+    socket.on('user-removed', userId => {
+        users.value = users.value.filter(_user => _user.id !== userId);
     });
 
-    socket.on('new-video', url => {
-        sourceUrl.value = url;
-        if (sourceUrl.value)
-            videoPlayerRef.value.load(sourceUrl.value);
+    socket.on('user-updated', user => {
+        const listUser = users.value.find(_user => _user.id === user.id);
+        if (!listUser) {
+            users.value.push(user);
+        } else {
+            listUser.isMaster  = user.isMaster;
+            listUser.playing   = user.playing;
+            listUser.buffering = user.buffering;
+            listUser.position  = user.position;
+        }
     });
 
-    socket.on('position-updated', time => {
-        videoPlayerRef.value.setPosition(time);
-    });
-
-    socket.on('user-update', user => {
-        const ourUser = users.value.find(_user => _user.id === user.id);
-
-        if (ourUser === undefined)
+    socket.on('room-updated', room => {
+        if (loadedSourceUrl.value !== room.videoUrl) {
+            loadedSourceUrl.value = room.videoUrl;
+            videoPlayerRef.value.load(room.videoUrl, room.position, room.playing);
             return;
+        }
 
-        ourUser.playing  = user.playing;
-        ourUser.position = user.position;
+        if (playing.value !== room.playing) {
+            if (room.playing)
+                videoPlayerRef.value.play();
+            else
+                videoPlayerRef.value.pause();
+        }
+
+        if (Math.abs(position.value - room.position) >= 1) {
+            videoPlayerRef.value.setPosition(room.position);
+        }
     });
 
-    socket.on('set-play', () => videoPlayerRef.value.play());
-    socket.on('set-pause', () => videoPlayerRef.value.pause());
+    // socket.on('position-updated', time => {
+    //     videoPlayerRef.value.setPosition(time);
+    // });
+
+    // socket.on('user-update', user => {
+    //     const ourUser = users.value.find(_user => _user.id === user.id);
+    //
+    //     if (ourUser === undefined)
+    //         return;
+    //
+    //     ourUser.playing  = user.playing;
+    //     ourUser.position = user.position;
+    // });
+
+    //socket.on('set-play', () => videoPlayerRef.value.play());
+    //socket.on('set-pause', () => videoPlayerRef.value.pause());
 
     socket.on('disconnect', () => {
         socketConnected.value = false;
@@ -104,7 +165,7 @@ onBeforeUnmount(() => {
 </script>
 
 <template>
-    <UContainer class="py-5 flex flex-col gap-5">
+    <UContainer v-if="ready" class="py-5 flex flex-col gap-5">
         <div class="flex w-full gap-5">
             <div class="flex flex-col gap-5 grow w-0">
                 <div>
@@ -127,26 +188,17 @@ onBeforeUnmount(() => {
 
                 <UForm @submit="loadVideo">
                     <UFormField label="URL" size="xl">
-                        <UInput v-model="sourceUrl" class="w-full"/>
+                        <UInput v-model="inputSourceUrl" class="w-full"/>
                     </UFormField>
                 </UForm>
             </div>
 
-            <div class="flex flex-col gap-2.5 shrink-0 w-[250px]">
-                <div v-for="user in users"
-                     class="bg-neutral-800 px-2.5 py-1.5">
-                    <p class="font-semibold">Пользователь</p>
-                    <p class="truncate">{{ user.id }}</p>
-                    <div class="flex gap-2.5 items-center">
-                        <UIcon v-if="user.playing" name="i-mdi-play"/>
-                        <UIcon v-else name="i-mdi-pause"/>
-                        <p>{{ user.position }}</p>
-                    </div>
-                </div>
-            </div>
+            <UserList :users="users"/>
         </div>
 
         <div>
+            <p>Loaded URL: {{ loadedSourceUrl }}</p>
+
             <p v-if="socketConnected">Socket connected</p>
             <p v-else>Socket disconnected</p>
 
@@ -159,6 +211,10 @@ onBeforeUnmount(() => {
             <p>Position: {{ position }}</p>
         </div>
     </UContainer>
+
+    <div v-else class="flex items-center justify-center w-dvw h-dvh">
+        <UButton size="xl" label="Подключиться" icon="i-mdi-user-plus" @click="ready = true; socket?.connect()"/>
+    </div>
 </template>
 
 <style scoped>

@@ -220,7 +220,7 @@ defineShortcuts({
 });
 
 defineExpose({
-    load(url: string) {
+    load(url: string, position: number = 0, playing: boolean = false) {
         // Очищаем предыдущие данные
         videoTracks.value     = [];
         audioTracks.value     = [];
@@ -246,6 +246,11 @@ defineExpose({
             videoRef.value.src = url;
             isPlaylist.value   = false;
         }
+
+        videoRef.value.currentTime = position;
+
+        if (playing)
+            videoRef.value.play();
     },
 
     setPosition(time: number) {
