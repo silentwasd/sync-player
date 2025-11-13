@@ -59,6 +59,22 @@ watch(position, currentPosition => {
     myUser.value.position = currentPosition;
 });
 
+function startBuffering() {
+    if (!myUser.value)
+        return;
+
+    socket?.emit('i-am-buffering');
+    myUser.value.buffering = true;
+}
+
+function stopBuffering() {
+    if (!myUser.value)
+        return;
+
+    socket?.emit('i-am-not-buffering');
+    myUser.value.buffering = false;
+}
+
 onMounted(() => {
     socket = io('http://192.168.0.34:4000', {autoConnect: false});
 
@@ -134,23 +150,6 @@ onMounted(() => {
         }
     });
 
-    // socket.on('position-updated', time => {
-    //     videoPlayerRef.value.setPosition(time);
-    // });
-
-    // socket.on('user-update', user => {
-    //     const ourUser = users.value.find(_user => _user.id === user.id);
-    //
-    //     if (ourUser === undefined)
-    //         return;
-    //
-    //     ourUser.playing  = user.playing;
-    //     ourUser.position = user.position;
-    // });
-
-    //socket.on('set-play', () => videoPlayerRef.value.play());
-    //socket.on('set-pause', () => videoPlayerRef.value.pause());
-
     socket.on('disconnect', () => {
         socketConnected.value = false;
         roomJoined.value      = false;
@@ -174,9 +173,8 @@ onBeforeUnmount(() => {
                                      class="w-full aspect-[16/9] bg-black"
                                      v-model:playing="playing"
                                      v-model:position="position"
-                                     @set-position="socket?.emit('set-position', $event)"
-                                     @play="socket?.emit('set-play', $event)"
-                                     @pause="socket?.emit('set-pause', $event)"/>
+                                     @start-buffering="startBuffering"
+                                     @stop-buffering="stopBuffering"/>
 
                         <template #fallback>
                             <div class="w-full aspect-[16/9] bg-black flex items-center justify-center">

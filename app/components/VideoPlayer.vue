@@ -2,9 +2,8 @@
 import Hls from "hls.js";
 
 const emit = defineEmits<{
-    (e: 'setPosition', time: number): void,
-    (e: 'play'): void
-    (e: 'pause'): void
+    (e: 'startBuffering'): void
+    (e: 'stopBuffering'): void
 }>();
 
 const inputPosition = defineModel<number>('position', {default: 0});
@@ -179,7 +178,6 @@ function exitFullscreen() {
 
 function onProgressChange(time: number) {
     videoRef.value.currentTime = time;
-    emit('setPosition', time);
 }
 
 function resume() {
@@ -194,7 +192,6 @@ defineShortcuts({
         usingInput: true,
         handler   : () => {
             videoRef.value.currentTime += 5;
-            emit('setPosition', videoRef.value.currentTime);
         }
     },
 
@@ -202,7 +199,6 @@ defineShortcuts({
         usingInput: true,
         handler   : () => {
             videoRef.value.currentTime -= 5;
-            emit('setPosition', videoRef.value.currentTime);
         }
     },
 
@@ -270,14 +266,12 @@ onMounted(() => {
     videoRef.value.addEventListener('pause', () => {
         paused.value       = true;
         inputPlaying.value = false;
-        emit('pause');
     });
 
     videoRef.value.addEventListener('play', () => {
         paused.value       = false;
         played.value       = true;
         inputPlaying.value = true;
-        emit('play');
     });
 
     videoRef.value.addEventListener('timeupdate', () => {
@@ -296,10 +290,12 @@ onMounted(() => {
 
     videoRef.value.addEventListener('waiting', () => {
         loading.value = true;
+        emit('startBuffering');
     });
 
     videoRef.value.addEventListener('playing', () => {
         loading.value = false;
+        emit('stopBuffering');
     });
 
     videoRef.value.addEventListener('loadedmetadata', () => {

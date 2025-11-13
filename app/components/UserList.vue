@@ -16,7 +16,7 @@ const props = defineProps<{
             <div class="flex gap-2.5 items-center">
                 <UIcon v-if="user.playing" name="i-mdi-play"/>
                 <UIcon v-else-if="!user.playing" name="i-mdi-pause"/>
-                <UIcon v-if="user.buffering" name="i-mdi-loading"/>
+                <UIcon v-if="user.buffering" name="i-mdi-loading" class="animate-spin"/>
                 <p>{{ user.position }}</p>
             </div>
         </div>
