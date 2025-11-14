@@ -7,5 +7,11 @@ export default defineNuxtConfig({
 
     devServer: {
         host: '0.0.0.0'
+    },
+
+    runtimeConfig: {
+        public: {
+            socketServer: process.env.NUXT_SOCKET_SERVER
+        }
     }
 })

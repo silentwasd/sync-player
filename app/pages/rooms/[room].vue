@@ -81,9 +81,10 @@ function stopBuffering() {
 }
 
 const userAppearance = useUserAppearance();
+const config         = useRuntimeConfig();
 
 onMounted(() => {
-    socket = io('http://192.168.0.34:4000', {autoConnect: false});
+    socket = io(config.public.socketServer, {autoConnect: false});
 
     socket.on('connect', async () => {
         console.log('Connected');

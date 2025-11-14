@@ -22,6 +22,7 @@
     "@iconify-json/heroicons": "^1.2.3",
     "@iconify-json/lucide": "^1.2.73",
     "@iconify-json/mdi": "^1.2.3",
+    "@types/node": "^24.10.1",
     "@vueuse/core": "^14.0.0",
     "@vueuse/nuxt": "^14.0.0"
   }
