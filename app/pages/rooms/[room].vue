@@ -2,6 +2,10 @@
 import {io, Socket} from "socket.io-client";
 import type User from "~/types/User";
 
+useHead({
+    title: 'Комната // Zixu Screen'
+});
+
 let socket: Socket;
 
 const ready = ref<boolean>(false);
@@ -197,26 +201,21 @@ onBeforeUnmount(() => {
                         <UInput v-model="inputSourceUrl" class="w-full"/>
                     </UFormField>
                 </UForm>
+
+                <div>
+                    <p class="truncate">Загруженный URL: {{ loadedSourceUrl ? loadedSourceUrl : 'пусто' }}</p>
+
+                    <p v-if="socketConnected">Сокет подключен 🔌</p>
+                    <p v-else>Сокет отключен ❌</p>
+
+                    <p v-if="roomJoined">Ты в комнате 👍</p>
+                    <p v-else>Ты не в комнате 🤔</p>
+                </div>
             </div>
 
             <UserList v-if="myUser"
                       :my-user="myUser"
                       :users="users"/>
-        </div>
-
-        <div>
-            <p>Loaded URL: {{ loadedSourceUrl }}</p>
-
-            <p v-if="socketConnected">Socket connected</p>
-            <p v-else>Socket disconnected</p>
-
-            <p v-if="roomJoined">Room joined</p>
-            <p v-else>Room not joined</p>
-
-            <p v-if="playing">Playing</p>
-            <p v-else>Not playing</p>
-
-            <p>Position: {{ position }}</p>
         </div>
     </UContainer>
 

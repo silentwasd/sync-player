@@ -82,7 +82,7 @@ const removeAvatar = () => {
 </script>
 
 <template>
-    <div class="flex items-center justify-center w-dvw h-dvh">
+    <div class="flex items-center justify-center w-full h-[calc(100vh-var(--ui-header-height))]">
         <div class="flex flex-col gap-5 w-full max-w-sm">
             <ClientOnly>
                 <!-- Аватарка -->

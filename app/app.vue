@@ -4,6 +4,10 @@ const userId = useUserId();
 
 <template>
     <UApp>
-        <NuxtPage/>
+        <UHeader title="Screen"/>
+
+        <UMain>
+            <NuxtPage/>
+        </UMain>
     </UApp>
 </template>
