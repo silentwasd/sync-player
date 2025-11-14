@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import {io, Socket} from "socket.io-client";
+import type User from "~/types/User";
 
 let socket: Socket;
 
@@ -11,7 +12,7 @@ const toast  = useToast();
 
 const socketConnected = ref<boolean>(false);
 const roomJoined      = ref<boolean>(false);
-const users           = ref<any[]>([]);
+const users           = ref<User[]>([]);
 
 const inputSourceUrl  = ref<string>('');
 const loadedSourceUrl = ref<string>('');
@@ -19,7 +20,7 @@ const videoPlayerRef  = ref();
 const position        = ref<number>(0);
 const playing         = ref<boolean>(false);
 
-const myUser = computed<any>(() => users.value.find(user => user.id === userId.value));
+const myUser = computed<User | null>(() => users.value.find(user => user.id === userId.value) ?? null);
 
 async function loadVideo() {
     if (!socket)
@@ -75,6 +76,8 @@ function stopBuffering() {
     myUser.value.buffering = false;
 }
 
+const userAppearance = useUserAppearance();
+
 onMounted(() => {
     socket = io('http://192.168.0.34:4000', {autoConnect: false});
 
@@ -83,8 +86,12 @@ onMounted(() => {
         socketConnected.value = true;
 
         const roomInfo = await socket.emitWithAck('join-room', {
-            userId: userId.value,
-            roomId: route.params.room as string
+            userId    : userId.value,
+            roomId    : route.params.room as string,
+            appearance: {
+                name  : userAppearance.value.name?.trim() ?? null,
+                avatar: userAppearance.value.avatar
+            }
         });
 
         if (!roomInfo) {
@@ -124,10 +131,11 @@ onMounted(() => {
         if (!listUser) {
             users.value.push(user);
         } else {
-            listUser.isMaster  = user.isMaster;
-            listUser.playing   = user.playing;
-            listUser.buffering = user.buffering;
-            listUser.position  = user.position;
+            listUser.isMaster   = user.isMaster;
+            listUser.playing    = user.playing;
+            listUser.buffering  = user.buffering;
+            listUser.position   = user.position;
+            listUser.appearance = user.appearance;
         }
     });
 
@@ -191,7 +199,9 @@ onBeforeUnmount(() => {
                 </UForm>
             </div>
 
-            <UserList :users="users"/>
+            <UserList v-if="myUser"
+                      :my-user="myUser"
+                      :users="users"/>
         </div>
 
         <div>
@@ -210,9 +220,7 @@ onBeforeUnmount(() => {
         </div>
     </UContainer>
 
-    <div v-else class="flex items-center justify-center w-dvw h-dvh">
-        <UButton size="xl" label="Подключиться" icon="i-mdi-user-plus" @click="ready = true; socket?.connect()"/>
-    </div>
+    <ConnectScreen v-else @ready="ready = true; socket?.connect()"/>
 </template>
 
 <style scoped>

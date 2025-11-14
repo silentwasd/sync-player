@@ -189,21 +189,21 @@ function resume() {
 
 defineShortcuts({
     arrowright: {
-        usingInput: true,
+        usingInput: false,
         handler   : () => {
             videoRef.value.currentTime += 5;
         }
     },
 
     arrowleft: {
-        usingInput: true,
+        usingInput: false,
         handler   : () => {
             videoRef.value.currentTime -= 5;
         }
     },
 
     ' ': {
-        usingInput: true,
+        usingInput: false,
         handler   : () => {
             if (!paused.value) {
                 controlShown.value = true;
